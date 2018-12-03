@@ -1,0 +1,314 @@
+---
+title: "Hoja 4"
+author: "Reinier Mujica"
+date: "2 de diciembre de 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+### Inicialización
+Limpiamos todas las variables del espacio de trabajo y el terminal de R.
+```{r}
+rm(list=ls())
+cat("\014")
+
+```
+Cargamos el paquete de wooldridge y los datos
+```{r}
+library(wooldridge)
+attach(bwght2)
+```
+Fijamos la semilla 
+```{r}
+set.seed(100)
+```
+
+
+### Limpiar los datos
+Vamos a remover los valores NA de los datos
+```{r}
+datos = na.omit(bwght2)
+```
+
+### División del conjunto de datos
+```{r}
+train.size = round(dim(datos)[1] * 0.7)
+train = sample(1:dim(datos)[1], train.size)
+test = -train
+datos.train = datos[train, ]
+datos.test = datos[test, ]
+```
+
+
+### Preguntas:
+
+#### a) 
+El conjunto de datos es bwght2 y contiene información sobre nacimientos. Estos datos han sido obtenidos de certificados de 
+nacimiento y desfunción y también de información de natalidad y mortalidad del Centro Nacional de Estadística para la Salud. 
+El dataset contiene varias variables con diversa información como: edad de los padres, educación de los padres, número de visitas prenatales, peso al nacer, e información acerca de la cantidad de cigarillos y bebida que consumia la madre durante el embarazo. También se incluye información del feto.
+
+Los nombres de las variables que contiene el dataset son:
+```{r}
+names(bwght2)
+```
+La variable dependiente que va ha ser explicada es **lbwght**, que es el logaritmo de la variable **bwght** que es el peso al nacer.
+
+Vamos a ajustar un modelo de mínimos cuadrados ordinarios (con todas las variables explicativas) en el conjunto
+de entrenamiento e imprimir el error de prueba obtenido.
+```{r}
+lm.fit = lm(lbwght~., data=datos.train)
+lm.pred = predict(lm.fit, newdata = datos.test)
+
+error.mco <- mean((datos.test[, "lbwght"] - lm.pred)^2)
+error.mco
+```
+
+Los datos del modelo y los coeficientes B los podemos ver a continuación.
+```{r}
+summary(lm.fit)
+lm.fit$coefficients
+```
+
+Podemos concluir que dos coeficientes fueron omitidos por estar las respectivas variables muy correlacionadas(**moth** y **foth**). También como se puede ver en el resultado de la instrucción **summary** solo las variables:
+
+**bwght**
+**fmaps**    
+**lbw**        
+**vlbw**        
+
+Son significativas para predecir **lbwght**.
+
+#### b)
+Procedemos a eliminar del Dataset las dos variables correlacionadas **moth** y **foth**
+```{r}
+datos[, "moth"] <- NULL
+datos[, "foth"] <- NULL
+datos.train[, "moth"] <- NULL
+datos.train[, "foth"] <- NULL
+datos.test[, "moth"] <- NULL
+datos.test[, "foth"] <- NULL
+
+```
+
+Luego ajustamos un MCO utilizando la Mejor Selección de Conjuntos
+```{r}
+library(leaps)
+
+nvariables <- as.numeric(dim(datos)[2] - 1)
+regfit.full = regsubsets(lbwght~., data=datos[train,], nvmax=nvariables)
+
+predict.regsubsets=function(object, newdata, id, ...) {
+  form=as.formula(object$call[[2]])
+  mat=model.matrix(form,newdata)
+  coefi=coef(object,id=id) 
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+k = 10
+set.seed(100)
+folds=sample(1:k,nrow(datos.train),replace=TRUE)
+table(folds)
+cv.errors=matrix(NA,k,nvariables, dimnames =list(NULL , paste(1:nvariables)))
+for(j in 1:k){
+  best.fit=regsubsets(lbwght~.,data=datos.train[folds!=j,],
+                      nvmax=nvariables)
+  for(i in 1:nvariables){
+    pred=predict.regsubsets(best.fit,datos.train[folds==j,],id=i)
+    cv.errors[j,i]=mean( (datos.train$lbwght[folds==j]-pred)^2)
+  }
+}
+rmse.cv=sqrt(apply(cv.errors,2,mean))
+rmse.cv
+which.min(rmse.cv)
+plot(rmse.cv,pch=19,type="b")
+reg.best=regsubsets (lbwght~.,data=datos.train , nvmax=nvariables)
+coef(reg.best ,which.min(rmse.cv))
+
+# Modelo final acorde a las la mejor selección de conjuntos
+fit.final <- lm(lbwght ~ bwght + fmaps + lbw + vlbw, data = datos.train)
+summary(fit.final)
+
+regfit.full=regsubsets(lbwght~.,data= datos[train,],nvmax=nvariables)
+
+lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rmse.cv))
+error.mss <- mean((datos.test[, "lbwght"] - lm.pred)^2)
+error.mss 
+```
+El error de prueba obtenido es mas pequeño que con el MCO ordinario.
+
+#### c)
+```{r}
+nvariables <- as.numeric(dim(datos)[2] - 1)
+regfit.full = regsubsets(lbwght~., data=datos[train,], nvmax=nvariables, method = "forward")
+
+k = 10
+set.seed(100)
+folds=sample(1:k,nrow(datos.train),replace=TRUE)
+
+table(folds)
+cv.errors=matrix(NA,k,nvariables, dimnames =list(NULL , paste(1:nvariables)))
+for(j in 1:k){
+  best.fit=regsubsets(lbwght~.,data=datos.train[folds!=j,],
+                      nvmax=nvariables, method = "forward")
+  for(i in 1:nvariables){
+    pred=predict.regsubsets(best.fit,datos.train[folds==j,],id=i)
+    cv.errors[j,i]=mean( (datos.train$lbwght[folds==j]-pred)^2)
+  }
+}
+rmse.cv=sqrt(apply(cv.errors,2,mean))
+rmse.cv
+which.min(rmse.cv)
+plot(rmse.cv,pch=19,type="b")
+reg.best=regsubsets (lbwght~.,data=datos.train , nvmax=nvariables, method = "forward")
+coef(reg.best ,which.min(rmse.cv))
+
+# Modelo final acorde a las la mejor selección de conjuntos
+fit.final <- lm(lbwght ~ bwght + fmaps + lbw + vlbw, data = datos.train)
+summary(fit.final)
+
+regfit.full=regsubsets(lbwght~.,data= datos[train,],nvmax=nvariables, method = "forward")
+
+lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rmse.cv))
+error.mss <- mean((datos.test[, "lbwght"] - lm.pred)^2)
+error.mss 
+```
+
+
+
+#### d)
+```{r}
+nvariables <- as.numeric(dim(datos)[2] - 1)
+regfit.full = regsubsets(lbwght~., data=datos[train,], nvmax=nvariables)
+
+predict.regsubsets=function(object, newdata, id, ...) {
+  form=as.formula(object$call[[2]])
+  mat=model.matrix(form,newdata)
+  coefi=coef(object,id=id) 
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+k = 5
+set.seed(100)
+folds=sample(1:k,nrow(datos.train),replace=TRUE)
+
+table(folds)
+cv.errors=matrix(NA,k,nvariables, dimnames =list(NULL , paste(1:nvariables)))
+for(j in 1:k){
+  best.fit=regsubsets(lbwght~.,data=datos.train[folds!=j,],
+                      nvmax=nvariables)
+  for(i in 1:nvariables){
+    pred=predict.regsubsets(best.fit,datos.train[folds==j,],id=i)
+    cv.errors[j,i]=mean( (datos.train$lbwght[folds==j]-pred)^2)
+  }
+}
+rmse.cv=sqrt(apply(cv.errors,2,mean))
+rmse.cv
+which.min(rmse.cv)
+plot(rmse.cv,pch=19,type="b")
+reg.best=regsubsets (lbwght~.,data=datos.train , nvmax=nvariables)
+coef(reg.best ,which.min(rmse.cv))
+
+# Modelo final acorde a las la mejor selección de conjuntos
+fit.final <- lm(lbwght ~ bwght + fmaps + lbw + vlbw, data = datos.train)
+summary(fit.final)
+
+regfit.full=regsubsets(lbwght~.,data= datos[train,],nvmax=nvariables)
+
+lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rmse.cv))
+error.mss <- mean((datos.test[, "lbwght"] - lm.pred)^2)
+error.mss 
+```
+
+```{r}
+nvariables <- as.numeric(dim(datos)[2] - 1)
+regfit.full = regsubsets(lbwght~., data=datos[train,], nvmax=nvariables, method = "forward")
+
+k = 5
+set.seed(100)
+folds=sample(1:k,nrow(datos.train),replace=TRUE)
+
+table(folds)
+cv.errors=matrix(NA,k,nvariables, dimnames =list(NULL , paste(1:nvariables)))
+for(j in 1:k){
+  best.fit=regsubsets(lbwght~.,data=datos.train[folds!=j,],
+                      nvmax=nvariables, method = "forward")
+  for(i in 1:nvariables){
+    pred=predict.regsubsets(best.fit,datos.train[folds==j,],id=i)
+    cv.errors[j,i]=mean( (datos.train$lbwght[folds==j]-pred)^2)
+  }
+}
+rmse.cv=sqrt(apply(cv.errors,2,mean))
+rmse.cv
+which.min(rmse.cv)
+plot(rmse.cv,pch=19,type="b")
+reg.best=regsubsets (lbwght~.,data=datos.train , nvmax=nvariables, method = "forward")
+coef(reg.best ,which.min(rmse.cv))
+
+# Modelo final acorde a las la mejor selección de conjuntos
+fit.final <- lm(lbwght ~ bwght + fmaps + lbw + vlbw, data = datos.train)
+summary(fit.final)
+
+regfit.full=regsubsets(lbwght~.,data= datos[train,],nvmax=nvariables, method = "forward")
+
+lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rmse.cv))
+error.mss <- mean((datos.test[, "lbwght"] - lm.pred)^2)
+error.mss 
+```
+
+
+
+
+Repite los apartados b. y c., pero utilizando la Validaci´on Cruzada 5-Veces.
+
+e. Haz una tabla que ense~ne el nombre de cada modelo (con la Validaci´on Cruzada utilizada) y su error de
+prueba. >Hay mucha diferencia entre los errores de prueba resultantes de estos enfoques?
+
+f. Selecciona el mejor modelo (que tenga el menor error de prueba) del apartado e. y verifica si sus coeficientes
+son individualmente significativos al 5% de significaci´on. En caso contrario, elimina los coeficientes no
+significativos al 5% uno a la vez, es decir, elimina el menos significativo (desde que no sea significativo al
+5%) y estima el modelo otra vez hasta que s´olo haya coeficientes significativos al 5% de significaci´on. >Es
+el nuevo modelo m´as preciso que el mejor modelo del apartado e.?
+
+g. Ajusta una Regresi´on Ridge en el conjunto de entrenamiento, con el λ elegido mediante la Validaci´on
+Cruzada 10-Veces. Informa el error de prueba obtenido.
+
+h. Ajusta un modelo LASSO en el conjunto de entrenamiento, con el λ elegido mediante la Validaci´on Cruzada
+10-Veces. Informa el error de prueba obtenido junto con el n´umero de coeficientes estimados diferentes de
+cero.
+
+i. Repite los apartados g. y h., pero utilizando la Validaci´on Cruzada 5-Veces.
+
+j. Ajusta un modelo de Componentes Principales en el conjunto de entrenamiento, con el M (n´umero de
+componentes principales) elegido mediante la Validaci´on Cruzada 10-Veces y otro mediante la Validaci´on
+Cruzada 5-Veces. Informa el error de prueba obtenido junto con el valor de M seleccionado mediante cada
+Validaci´on Cruzada.
+
+k. Ajusta un modelo de M´ınimos Cuadrados Parciales (PLS) en el conjunto de entrenamiento, con el M
+(n´umero de componentes principales) elegido mediante la Validaci´on Cruzada 10-Veces y otro mediante
+la Validaci´on Cruzada 5-Veces. Aparte de la regla del codo y del error m´ınimo de la Validaci´on
+Cruzada, selecciona el M tambi´en mediante la opci´on \randomization" en el R. Adem´as,
+explica qu´e hace este m´etodo en el M´ınimos Cuadrados Parciales. Informa el error de prueba
+obtenido junto con el valor de M seleccionado mediante cada Validaci´on Cruzada.
+
+l. Ajusta un modelo LASSO con la restricci´on de Red El´astica (LASSO with Elastic Net) en el conjunto de
+entrenamiento, con el α y el λ elegido mediante la Validaci´on Cruzada 10-Veces. Informa el error de
+prueba obtenido junto con el n´umero de coeficientes estimados que sean diferentes de cero.
+
+m. Repite el apartado anterior, pero utilizando la Validaci´on Cruzada 5-Veces.
+
+n. Para cada uno de los modelos seleccionados en los apartados g., h., i., l. y m., contrasta la significaci´on
+individual de cada coeficiente estimado del modelo final. Utiliza el nivel de significaci´on del 5%. Bas´andose
+en contrastes de significaci´on individual, selecciona modelos que contengan s´olo variables significativas al
+5% de significaci´on y estima el error de prueba de estos modelos.
+
+o. Haz una tabla que ense~ne el nombre de cada modelo (con la Validaci´on Cruzada utilizada) y su error de
+prueba. >Hay mucha diferencia entre los errores de prueba resultantes de estos enfoques? >Cu´al es el
+modelo con el mejor ajuste? >Es el nuevo modelo m´as preciso que el mejor modelo del apartado f.?
+
+p. Haz una tabla con los coeficientes estimados con sus p-valores del modelo con el mejor ajuste. Comenta tus
+resultado
