@@ -40,6 +40,7 @@ train = sample(1:dim(datos)[1], train.size)
 test = -train
 datos.train = datos[train, ]
 datos.test = datos[test, ]
+test.size = dim(datos.test)[1]
 ```
 
 
@@ -283,10 +284,8 @@ A continuación se muestran los modelos utilizados anteriormente con el tipo de 
 ```{r}
 kable(results)
 ```
+Como se puede observar en la tabla no hay mucha diferencia entre los errores de prueba obtenidos de estos enfoques.
 
-
-e. Haz una tabla que ense~ne el nombre de cada modelo (con la Validaci´on Cruzada utilizada) y su error de
-prueba. >Hay mucha diferencia entre los errores de prueba resultantes de estos enfoques?
 
 f. Selecciona el mejor modelo (que tenga el menor error de prueba) del apartado e. y verifica si sus coeficientes
 son individualmente significativos al 5% de significaci´on. En caso contrario, elimina los coeficientes no
@@ -294,19 +293,201 @@ significativos al 5% uno a la vez, es decir, elimina el menos significativo (des
 5%) y estima el modelo otra vez hasta que s´olo haya coeficientes significativos al 5% de significaci´on. >Es
 el nuevo modelo m´as preciso que el mejor modelo del apartado e.?
 
-g. Ajusta una Regresi´on Ridge en el conjunto de entrenamiento, con el λ elegido mediante la Validaci´on
-Cruzada 10-Veces. Informa el error de prueba obtenido.
+#### g)
+Regresión de Ridge
 
-h. Ajusta un modelo LASSO en el conjunto de entrenamiento, con el λ elegido mediante la Validaci´on Cruzada
-10-Veces. Informa el error de prueba obtenido junto con el n´umero de coeficientes estimados diferentes de
-cero.
+```{r}
+set.seed(100)
+library(glmnet)
+x=model.matrix(lbwght~.,datos)[,-1]
+y=datos$lbwght
+y.test=y[test]
+grid=10^seq(10,-2, length =100)
+cv.ridge=cv.glmnet(x[train ,],y[train],alpha=0,lambda=grid)
+plot(cv.ridge)
+mejorlambda=cv.ridge$lambda.min
+mejorlambda
 
-i. Repite los apartados g. y h., pero utilizando la Validaci´on Cruzada 5-Veces.
+ridge.mod=glmnet(x[train ,],y[train],alpha=0,lambda=grid)
+ridge.pred=predict(ridge.mod,s=mejorlambda ,newx=x[test ,])
+mean((ridge.pred-y.test)^2)
+error.ridge <- mean((ridge.pred-datos.test[, "lbwght"] )^2)
+error.ridge
 
-j. Ajusta un modelo de Componentes Principales en el conjunto de entrenamiento, con el M (n´umero de
-componentes principales) elegido mediante la Validaci´on Cruzada 10-Veces y otro mediante la Validaci´on
-Cruzada 5-Veces. Informa el error de prueba obtenido junto con el valor de M seleccionado mediante cada
-Validaci´on Cruzada.
+# Regla del "codo" de una DT del error de VC:
+lambda.codo <- cv.ridge$lambda.1se
+lambda.codo
+
+ridge.pred.2=predict(ridge.mod,s=lambda.codo,newx=x[test ,])
+error.ridge.2 <- mean((ridge.pred.2-datos.test[, "lbwght"] )^2)
+error.ridge.2
+```
+
+#### h)
+Modelo de LASSO
+```{r}
+set.seed(100)
+cv.lasso=cv.glmnet(x[train ,],y[train],alpha=1, lambda = grid)
+plot(cv.lasso)
+bestlam=cv.lasso$lambda.min
+bestlam
+
+lasso.mod=glmnet(x[train ,],y[train],alpha=1,lambda=grid)
+plot(lasso.mod)
+lasso.pred=predict(lasso.mod,s=bestlam,newx=x[test ,])
+
+# Regla del "codo" de una DT del error de VC:
+lambda.codo.l <- cv.lasso$lambda.1se
+lambda.codo.l
+
+lasso.pred.2=predict(lasso.mod,s=lambda.codo.l,newx=x[test ,])
+error.lasso.2 <- mean((lasso.pred.2-datos.test[, "lbwght"] )^2)
+error.lasso.2
+
+```
+Para obtener los coeficientes del modelo para el mejor lambda usamos la función coef
+```{r}
+c = coef(lasso.mod, s = bestlam)
+c
+```
+Los coeficientes diferentes de 0 son `r length(c[c!=0]) - 1`.
+
+#### i)
+
+Regresión de Ridge con CV 5 veces
+
+```{r}
+set.seed(100)
+library(glmnet)
+x=model.matrix(lbwght~.,datos)[,-1]
+y=datos$lbwght
+y.test=y[test]
+grid=10^seq(10,-2, length =100)
+cv.ridge=cv.glmnet(x[train ,],y[train],alpha=0,lambda=grid, nfolds = 5)
+plot(cv.ridge)
+mejorlambda=cv.ridge$lambda.min
+mejorlambda
+
+ridge.mod=glmnet(x[train ,],y[train],alpha=0,lambda=grid)
+ridge.pred=predict(ridge.mod,s=mejorlambda ,newx=x[test ,])
+mean((ridge.pred-y.test)^2)
+error.ridge <- mean((ridge.pred-datos.test[, "lbwght"] )^2)
+error.ridge
+
+# Regla del "codo" de una DT del error de VC:
+lambda.codo <- cv.ridge$lambda.1se
+lambda.codo
+
+ridge.pred.2=predict(ridge.mod,s=lambda.codo,newx=x[test ,])
+error.ridge.2 <- mean((ridge.pred.2-datos.test[, "lbwght"] )^2)
+error.ridge.2
+```
+
+Modelo de LASSO
+```{r}
+set.seed(100)
+cv.lasso=cv.glmnet(x[train ,],y[train],alpha=1, lambda = grid, nfolds = 5)
+plot(cv.lasso)
+bestlam=cv.lasso$lambda.min
+bestlam
+
+lasso.mod=glmnet(x[train ,],y[train],alpha=1,lambda=grid)
+plot(lasso.mod)
+lasso.pred=predict(lasso.mod,s=bestlam,newx=x[test ,])
+
+# Regla del "codo" de una DT del error de VC:
+lambda.codo.l <- cv.lasso$lambda.1se
+lambda.codo.l
+
+lasso.pred.2=predict(lasso.mod,s=lambda.codo.l,newx=x[test ,])
+error.lasso.2 <- mean((lasso.pred.2-datos.test[, "lbwght"] )^2)
+error.lasso.2
+
+```
+Para obtener los coeficientes del modelo para el mejor lambda usamos la función coef
+```{r}
+c = coef(lasso.mod, s = bestlam)
+c
+```
+Los coeficientes diferentes de 0 son `r length(c[c!=0]) - 1`.
+
+#### j)
+```{r}
+library(pls)
+set.seed(100)
+pcr.fit=pcr(lbwght~., data=datos,subset=train,scale=TRUE, validation="CV")
+summary(pcr.fit)
+validationplot(pcr.fit,val.type="MSEP", xlab = "Número de Componentes Principales")
+pcr.cv <- crossval(pcr.fit, segments = 10)
+plot(RMSEP(pcr.cv), legendpos="topright")
+summary(pcr.cv, what = "validation")
+
+## Selecciona el número de componentes principales
+## Regla del codo: 1 d.t.
+ncomp.1.d.t. <- selectNcomp(pcr.fit, method = "onesigma", plot = TRUE, validation = "CV",
+                            segments = 10)
+ncomp.1.d.t.
+pcr.pred=predict(pcr.fit,newdata=x[test,],ncomp=ncomp.1.d.t.)
+error.pcr <- mean((pcr.pred - datos.test[, "lbwght"])^2)
+error.pcr
+```
+Usando el Metodo de Componentes Principales con una Validación Cruzada 10 veces obtenemos la cantidad de componentes M = `r ncomp.1.d.t.` y un error de prueba de `r error.pcr`.
+
+El mismo método pero con la validación cruzada 5 veces seria:
+```{r}
+set.seed(100)
+pcr.fit=pcr(lbwght~., data=datos,subset=train,scale=TRUE, validation="CV")
+summary(pcr.fit)
+validationplot(pcr.fit,val.type="MSEP", xlab = "Número de Componentes Principales")
+pcr.cv <- crossval(pcr.fit, segments = 5)
+plot(RMSEP(pcr.cv), legendpos="topright")
+summary(pcr.cv, what = "validation")
+
+## Selecciona el número de componentes principales
+## Regla del codo: 1 d.t.
+ncomp.1.d.t. <- selectNcomp(pcr.fit, method = "onesigma", plot = TRUE, validation = "CV",
+                            segments = 5)
+ncomp.1.d.t.
+pcr.pred=predict(pcr.fit,newdata=x[test,],ncomp=ncomp.1.d.t.)
+error.pcr <- mean((pcr.pred - datos.test[, "lbwght"])^2)
+error.pcr
+```
+Usando el Metodo de Componentes Principales con una Validación Cruzada 5 veces obtenemos la cantidad de componentes M = `r ncomp.1.d.t.` y un error de prueba de `r error.pcr`.
+
+#### k)
+
+```{r}
+set.seed(111)
+pls.fit=plsr(Apps~., data=datos,subset=train,scale=TRUE, validation="CV")
+summary(pls.fit)
+validationplot(pls.fit,val.type="MSEP", xlab = "Número de Componentes Principales")
+pls.cv <- crossval(pls.fit, segments = 10)
+plot(RMSEP(pls.cv), legendpos="topright")
+summary(pls.cv, what = "validation")
+
+## Utilizamos 12 componentes por el Mínimo Error de VC
+pls.pred=predict(pls.fit,newdata=x[test,],ncomp=12)
+error.pls <- mean((pls.pred - datos.test[, "Apps"])^2)
+error.pls
+
+## Selecciona el número de componentes principales
+## Regla del codo: 1 d.t.
+ncomp.1.d.t. <- selectNcomp(pls.fit, method = "onesigma", plot = TRUE, validation = "CV",
+                            segments = 10)
+ncomp.1.d.t.
+pls.pred.2=predict(pls.fit,newdata=x[test,],ncomp=ncomp.1.d.t.)
+error.pls.codo <- mean((pls.pred.2 - datos.test[, "Apps"])^2)
+error.pls.codo
+
+## Regla de la permutación: se selecciona el ncomp que nos da el min Error de VC
+## Luego, se contrasta si hay una deterioración del Error de VC al quitar un componente
+## del Modelo de PLS, utilizando un alpha = 0.05. Este método utiliza la VC LOOC
+ncomp.perm <- selectNcomp(pls.fit, method = "randomization", plot = TRUE)
+ncomp.perm
+pls.pred.3=predict(pls.fit,newdata=x[test,],ncomp=ncomp.perm)
+error.pls.perm <- mean((pls.pred.3 - datos.test[, "Apps"])^2)
+error.pls.perm
+```
 
 k. Ajusta un modelo de M´ınimos Cuadrados Parciales (PLS) en el conjunto de entrenamiento, con el M
 (n´umero de componentes principales) elegido mediante la Validaci´on Cruzada 10-Veces y otro mediante
