@@ -14,7 +14,7 @@ Limpiamos todas las variables del espacio de trabajo y el terminal de R.
 ```{r}
 rm(list=ls())
 cat("\014")
-
+library(knitr)
 ```
 Cargamos el paquete de wooldridge y los datos
 ```{r}
@@ -59,11 +59,23 @@ La variable dependiente que va ha ser explicada es **lbwght**, que es el logarit
 Vamos a ajustar un modelo de mínimos cuadrados ordinarios (con todas las variables explicativas) en el conjunto
 de entrenamiento e imprimir el error de prueba obtenido.
 ```{r}
+set.seed(100)
 lm.fit = lm(lbwght~., data=datos.train)
 lm.pred = predict(lm.fit, newdata = datos.test)
 
 error.mco <- mean((datos.test[, "lbwght"] - lm.pred)^2)
 error.mco
+```
+
+Creamos una tabla para guardar los resultados de todos los modelos
+```{r}
+results <- matrix(NA, nrow = 3, ncol = 3)
+colnames(results) <- c("None","5 Cross Validation","10 Cross Validation")
+rownames(results) <- c("MCO","MCO with Subset Selection","MCO with Forward step wise")
+results <- as.table(results)
+
+results["MCO", "None"] = error.mco
+
 ```
 
 Los datos del modelo y los coeficientes B los podemos ver a continuación.
@@ -137,6 +149,8 @@ regfit.full=regsubsets(lbwght~.,data= datos[train,],nvmax=nvariables)
 lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rmse.cv))
 error.mss <- mean((datos.test[, "lbwght"] - lm.pred)^2)
 error.mss 
+
+results["MCO with Subset Selection", "10 Cross Validation"] = error.mss
 ```
 El error de prueba obtenido es mas pequeño que con el MCO ordinario.
 
@@ -175,9 +189,9 @@ regfit.full=regsubsets(lbwght~.,data= datos[train,],nvmax=nvariables, method = "
 lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rmse.cv))
 error.mss <- mean((datos.test[, "lbwght"] - lm.pred)^2)
 error.mss 
+
+results["MCO with Forward step wise", "10 Cross Validation"] = error.mss
 ```
-
-
 
 #### d)
 ```{r}
@@ -222,6 +236,8 @@ regfit.full=regsubsets(lbwght~.,data= datos[train,],nvmax=nvariables)
 lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rmse.cv))
 error.mss <- mean((datos.test[, "lbwght"] - lm.pred)^2)
 error.mss 
+
+results["MCO with Subset Selection", "5 Cross Validation"] = error.mss
 ```
 
 ```{r}
@@ -258,12 +274,16 @@ regfit.full=regsubsets(lbwght~.,data= datos[train,],nvmax=nvariables, method = "
 lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rmse.cv))
 error.mss <- mean((datos.test[, "lbwght"] - lm.pred)^2)
 error.mss 
+
+results["MCO with Forward step wise", "5 Cross Validation"] = error.mss
 ```
 
+#### e)
+A continuación se muestran los modelos utilizados anteriormente con el tipo de validación cruzada y su error de prueba correspondiente.
+```{r}
+kable(results)
+```
 
-
-
-Repite los apartados b. y c., pero utilizando la Validaci´on Cruzada 5-Veces.
 
 e. Haz una tabla que ense~ne el nombre de cada modelo (con la Validaci´on Cruzada utilizada) y su error de
 prueba. >Hay mucha diferencia entre los errores de prueba resultantes de estos enfoques?

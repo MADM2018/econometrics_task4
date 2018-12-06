@@ -133,7 +133,9 @@ $(document).ready(function () {
 <p>Limpiamos todas las variables del espacio de trabajo y el terminal de R.</p>
 <pre class="r"><code>rm(list=ls())
 cat(&quot;\014&quot;)</code></pre>
-<p> Cargamos el paquete de wooldridge y los datos</p>
+<p></p>
+<pre class="r"><code>library(knitr)</code></pre>
+<p>Cargamos el paquete de wooldridge y los datos</p>
 <pre class="r"><code>library(wooldridge)
 attach(bwght2)</code></pre>
 <p>Fijamos la semilla</p>
@@ -165,12 +167,20 @@ datos.test = datos[test, ]</code></pre>
 ## [22] &quot;magesq&quot;  &quot;npvissq&quot;</code></pre>
 <p>La variable dependiente que va ha ser explicada es <strong>lbwght</strong>, que es el logaritmo de la variable <strong>bwght</strong> que es el peso al nacer.</p>
 <p>Vamos a ajustar un modelo de mínimos cuadrados ordinarios (con todas las variables explicativas) en el conjunto de entrenamiento e imprimir el error de prueba obtenido.</p>
-<pre class="r"><code>lm.fit = lm(lbwght~., data=datos.train)
+<pre class="r"><code>set.seed(100)
+lm.fit = lm(lbwght~., data=datos.train)
 lm.pred = predict(lm.fit, newdata = datos.test)
 
 error.mco &lt;- mean((datos.test[, &quot;lbwght&quot;] - lm.pred)^2)
 error.mco</code></pre>
 <pre><code>## [1] 0.000518739</code></pre>
+<p>Creamos una tabla para guardar los resultados de todos los modelos</p>
+<pre class="r"><code>results &lt;- matrix(NA, nrow = 3, ncol = 3)
+colnames(results) &lt;- c(&quot;None&quot;,&quot;5 Cross Validation&quot;,&quot;10 Cross Validation&quot;)
+rownames(results) &lt;- c(&quot;MCO&quot;,&quot;MCO with Subset Selection&quot;,&quot;MCO with Forward step wise&quot;)
+results &lt;- as.table(results)
+
+results[&quot;MCO&quot;, &quot;None&quot;] = error.mco</code></pre>
 <p>Los datos del modelo y los coeficientes B los podemos ver a continuación.</p>
 <pre class="r"><code>summary(lm.fit)</code></pre>
 <pre><code>## 
@@ -317,6 +327,7 @@ lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rms
 error.mss &lt;- mean((datos.test[, &quot;lbwght&quot;] - lm.pred)^2)
 error.mss </code></pre>
 <pre><code>## [1] 0.000511914</code></pre>
+<pre class="r"><code>results[&quot;MCO with Subset Selection&quot;, &quot;10 Cross Validation&quot;] = error.mss</code></pre>
 <p>El error de prueba obtenido es mas pequeño que con el MCO ordinario.</p>
 </div>
 <div id="c" class="section level4">
@@ -390,6 +401,7 @@ lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rms
 error.mss &lt;- mean((datos.test[, &quot;lbwght&quot;] - lm.pred)^2)
 error.mss </code></pre>
 <pre><code>## [1] 0.000511914</code></pre>
+<pre class="r"><code>results[&quot;MCO with Forward step wise&quot;, &quot;10 Cross Validation&quot;] = error.mss</code></pre>
 </div>
 <div id="d" class="section level4">
 <h4>d)</h4>
@@ -470,6 +482,7 @@ lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rms
 error.mss &lt;- mean((datos.test[, &quot;lbwght&quot;] - lm.pred)^2)
 error.mss </code></pre>
 <pre><code>## [1] 0.000511914</code></pre>
+<pre class="r"><code>results[&quot;MCO with Subset Selection&quot;, &quot;5 Cross Validation&quot;] = error.mss</code></pre>
 <pre class="r"><code>nvariables &lt;- as.numeric(dim(datos)[2] - 1)
 regfit.full = regsubsets(lbwght~., data=datos[train,], nvmax=nvariables, method = &quot;forward&quot;)
 
@@ -539,7 +552,42 @@ lm.pred = predict.regsubsets(regfit.full, newdata = datos.test, id=which.min(rms
 error.mss &lt;- mean((datos.test[, &quot;lbwght&quot;] - lm.pred)^2)
 error.mss </code></pre>
 <pre><code>## [1] 0.000511914</code></pre>
-<p>Repite los apartados b. y c., pero utilizando la Validaci´on Cruzada 5-Veces.</p>
+<pre class="r"><code>results[&quot;MCO with Forward step wise&quot;, &quot;5 Cross Validation&quot;] = error.mss</code></pre>
+</div>
+<div id="e" class="section level4">
+<h4>e)</h4>
+<p>A continuación se muestran los modelos utilizados anteriormente con el tipo de validación cruzada y su error de prueba correspondiente.</p>
+<pre class="r"><code>kable(results)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">None</th>
+<th align="right">5 Cross Validation</th>
+<th align="right">10 Cross Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>MCO</td>
+<td align="right">0.0005187</td>
+<td align="right">NA</td>
+<td align="right">NA</td>
+</tr>
+<tr class="even">
+<td>MCO with Subset Selection</td>
+<td align="right">NA</td>
+<td align="right">0.0005119</td>
+<td align="right">0.0005119</td>
+</tr>
+<tr class="odd">
+<td>MCO with Forward step wise</td>
+<td align="right">NA</td>
+<td align="right">0.0005119</td>
+<td align="right">0.0005119</td>
+</tr>
+</tbody>
+</table>
 <ol start="5" style="list-style-type: lower-alpha">
 <li><p>Haz una tabla que ense~ne el nombre de cada modelo (con la Validaci´on Cruzada utilizada) y su error de prueba. &gt;Hay mucha diferencia entre los errores de prueba resultantes de estos enfoques?</p></li>
 <li><p>Selecciona el mejor modelo (que tenga el menor error de prueba) del apartado e. y verifica si sus coeficientes son individualmente significativos al 5% de significaci´on. En caso contrario, elimina los coeficientes no significativos al 5% uno a la vez, es decir, elimina el menos significativo (desde que no sea significativo al 5%) y estima el modelo otra vez hasta que s´olo haya coeficientes significativos al 5% de significaci´on. &gt;Es el nuevo modelo m´as preciso que el mejor modelo del apartado e.?</p></li>
